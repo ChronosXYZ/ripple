@@ -1,5 +1,5 @@
 [workspace]
-members = ["gui", "core", "cli"]
+members = ["gui", "core", "cli", "tauri-gui/src-tauri"]
 resolver = "2"
 default-members = ["gui"]
 
