@@ -505,26 +505,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitmessage-rs"
-version = "0.1.0"
-dependencies = [
- "arrayref",
- "async-std",
- "chrono",
- "directories",
- "gtk4",
- "identicon-rs",
- "libadwaita",
- "log",
- "mail-parser",
- "nantoka-core",
- "pretty_env_logger",
- "relm4",
- "relm4-components",
- "relm4-icons",
-]
-
-[[package]]
 name = "blake2"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3285,55 +3265,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nantoka-cli"
-version = "0.1.0"
-dependencies = [
- "async-std",
- "clap",
- "log",
- "nantoka-core",
- "pretty_env_logger",
- "signal-hook",
-]
-
-[[package]]
-name = "nantoka-core"
-version = "0.1.0"
-dependencies = [
- "async-std",
- "async-trait",
- "bs58",
- "bytes 1.4.0",
- "chrono",
- "directories",
- "dyn-clone",
- "ecies",
- "emailmessage",
- "erased-serde",
- "futures 0.3.28",
- "libp2p",
- "libsecp256k1",
- "log",
- "multiaddr",
- "num-bigint",
- "num_cpus",
- "once_cell",
- "pretty_env_logger",
- "queues",
- "rand 0.8.5",
- "ripemd",
- "serde",
- "serde_cbor",
- "serde_repr",
- "sha2 0.10.7",
- "sqlx",
- "strum",
- "thiserror",
- "timer",
- "void",
-]
-
-[[package]]
 name = "net2"
 version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4401,6 +4332,75 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
 dependencies = [
  "digest 0.10.7",
+]
+
+[[package]]
+name = "ripple-cli"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "clap",
+ "log",
+ "pretty_env_logger",
+ "ripple-core",
+ "signal-hook",
+]
+
+[[package]]
+name = "ripple-core"
+version = "0.1.0"
+dependencies = [
+ "async-std",
+ "async-trait",
+ "bs58",
+ "bytes 1.4.0",
+ "chrono",
+ "directories",
+ "dyn-clone",
+ "ecies",
+ "emailmessage",
+ "erased-serde",
+ "futures 0.3.28",
+ "libp2p",
+ "libsecp256k1",
+ "log",
+ "multiaddr",
+ "num-bigint",
+ "num_cpus",
+ "once_cell",
+ "pretty_env_logger",
+ "queues",
+ "rand 0.8.5",
+ "ripemd",
+ "serde",
+ "serde_cbor",
+ "serde_repr",
+ "sha2 0.10.7",
+ "sqlx",
+ "strum",
+ "thiserror",
+ "timer",
+ "void",
+]
+
+[[package]]
+name = "ripple-gtk-gui"
+version = "0.1.0"
+dependencies = [
+ "arrayref",
+ "async-std",
+ "chrono",
+ "directories",
+ "gtk4",
+ "identicon-rs",
+ "libadwaita",
+ "log",
+ "mail-parser",
+ "pretty_env_logger",
+ "relm4",
+ "relm4-components",
+ "relm4-icons",
+ "ripple-core",
 ]
 
 [[package]]

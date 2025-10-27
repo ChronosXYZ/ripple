@@ -86,7 +86,6 @@ impl RelmListItem for FolderItem {
 
 pub struct MessagesSidebar {
     tree_model: gtk::TreeListModel,
-    list_view: gtk::ListView,
 }
 
 #[derive(Debug)]
@@ -242,10 +241,7 @@ impl SimpleAsyncComponent for MessagesSidebar {
                 .unwrap();
         });
 
-        let model = Self {
-            list_view: list_view.clone(),
-            tree_model,
-        };
+        let model = Self { tree_model };
 
         let widgets = view_output!();
         AsyncComponentParts { model, widgets }

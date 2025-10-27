@@ -6,7 +6,7 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - ../:/app/bitmessage-rs:rw
+      - ../:/app:rw
     network_mode: host
     environment:
       - DISPLAY

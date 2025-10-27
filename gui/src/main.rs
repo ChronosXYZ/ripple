@@ -1,8 +1,8 @@
 use crate::app::AppModel;
 use async_std::task;
 use directories::ProjectDirs;
-use nantoka_core::network;
 use relm4::RelmApp;
+use ripple_core::network;
 
 pub mod app;
 mod components;
@@ -24,7 +24,7 @@ fn main() {
     state::STATE.write_inner().client = Some(client);
     relm4::RELM_THREADS.set(4).unwrap();
 
-    let app = RelmApp::new("io.github.chronosx88.BitmessageRs");
+    let app = RelmApp::new("net.pigeoncatcher.ripple");
     relm4_icons::initialize_icons();
     app.run::<AppModel>(());
 }

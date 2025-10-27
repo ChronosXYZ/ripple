@@ -1,14 +1,10 @@
 [workspace]
-members = [
-    "app",
-    "core",
-    "cli"
-]
+members = ["gui", "core", "cli"]
 resolver = "2"
-default-members = ["app"]
+default-members = ["gui"]
 
 [workspace.dependencies]
-nantoka-core = { version = "0.1.0", path = "core"}
+ripple-core = { version = "0.1.0", path = "core" }
 log = "0.4.17"
 async-std = { version = "1.12.0", features = ["attributes"] }
 pretty_env_logger = "0.4.0"

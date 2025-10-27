@@ -2,7 +2,7 @@ use std::{error::Error, path::PathBuf};
 
 use async_std::task;
 use clap::Parser;
-use nantoka_core::network;
+use ripple_core::network;
 use signal_hook::{
     consts::{SIGINT, SIGTERM},
     iterator::Signals,

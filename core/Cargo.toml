@@ -1,5 +1,5 @@
 [package]
-name = "nantoka-core"
+name = "ripple-core"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,7 +8,21 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.73"
 log = { workspace = true }
-libp2p = { version = "0.51.3", features = ["async-std", "dns", "macros", "noise", "ping", "tcp", "websocket", "yamux", "gossipsub", "request-response", "kad", "identify", "mdns"] }
+libp2p = { version = "0.51.3", features = [
+    "async-std",
+    "dns",
+    "macros",
+    "noise",
+    "ping",
+    "tcp",
+    "websocket",
+    "yamux",
+    "gossipsub",
+    "request-response",
+    "kad",
+    "identify",
+    "mdns",
+] }
 async-std = { workspace = true }
 chrono = { workspace = true }
 ecies = "0.2.3"
@@ -33,7 +47,12 @@ emailmessage = "0.2.2"
 void = "1.0.2"
 strum = { version = "0.24", features = ["derive"] }
 directories = { workspace = true }
-sqlx = { version = "0.7.1", features = [ "runtime-async-std", "sqlite", "migrate", "chrono" ] }
+sqlx = { version = "0.7.1", features = [
+    "runtime-async-std",
+    "sqlite",
+    "migrate",
+    "chrono",
+] }
 queues = "1.1.0"
 timer = "0.2.0"
 dyn-clone = "1.0.13"

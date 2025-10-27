@@ -1,0 +1,35 @@
+[package]
+name = "ripple-gtk-gui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+arrayref = "0.3.7"
+async-std = { workspace = true }
+relm4 = { version = "0.6.2", features = ["libadwaita"] }
+relm4-components = "0.6.2"
+relm4-icons = { version = "0.6.0", features = [
+    "person",
+    "mail-inbox-filled",
+    "desktop-pulse-filled",
+    "plus",
+    "pencil-and-paper",
+    "x-circular",
+    "edit",
+] }
+directories = { workspace = true }
+identicon-rs = "4.0.1"
+adw = { package = "libadwaita", version = "0.4.1", features = [
+    "gtk_v4_6",
+    "v1_3",
+] }
+gtk = { package = "gtk4", version = "0.6.6", features = ["v4_10"] }
+mail-parser = "0.8.2"
+
+log = { workspace = true }
+pretty_env_logger = { workspace = true }
+chrono = { workspace = true }
+
+ripple-core = { workspace = true }

@@ -41,7 +41,7 @@ impl SimpleComponent for AppModel {
         adw::ApplicationWindow {
             set_default_size: (800, 600),
 
-            set_title = Some("Bitmessage-rs"),
+            set_title = Some("Ripple"),
 
             gtk::Box {
                 set_orientation: gtk::Orientation::Vertical,
@@ -53,7 +53,7 @@ impl SimpleComponent for AppModel {
                     #[name="view_title"]
                     set_title_widget = &adw::ViewSwitcherTitle {
                         set_stack: Some(&stack),
-                        set_title: "Bitmessage-rs"
+                        set_title: "Ripple"
                     },
                     pack_start = if model.show_plus_button {
                         gtk::Button{
