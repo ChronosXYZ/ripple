@@ -6,7 +6,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use sqlx::{QueryBuilder, SqlitePool};
 
 use crate::repositories::inventory::InventoryRepository;
@@ -100,10 +100,7 @@ impl InventoryRepository for SqliteInventoryRepository {
             },
             object_type: o.kind.object_type() as i32,
             data,
-            expires: DateTime::<Utc>::from_utc(
-                NaiveDateTime::from_timestamp_opt(o.expires, 0).unwrap(),
-                Utc,
-            ),
+            expires: DateTime::from_timestamp(o.expires, 0).unwrap(),
             signature: o.signature,
         };
 

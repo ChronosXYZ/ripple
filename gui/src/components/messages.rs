@@ -1,4 +1,4 @@
-use adw;
+use adw::{self, prelude::NavigationPageExt};
 use gtk::{self, prelude::*};
 use relm4::component::{AsyncComponentController, AsyncController};
 use relm4::{
@@ -34,15 +34,25 @@ impl AsyncComponent for MessagesModel {
     view! {
         #[root]
         gtk::ScrolledWindow {
-            adw::Leaflet {
-                model.sidebar.widget() -> &gtk::ScrolledWindow,
-                gtk::Separator {},
-                model.content.widget() -> &gtk::Box {}
+            adw::NavigationSplitView {
+                #[wrap(Some)]
+                set_sidebar = &adw::NavigationPage {
+                    #[wrap(Some)]
+                    set_child = model.sidebar.widget(),
+                    set_title: "Folders",
+                },
+
+                #[wrap(Some)]
+                set_content = &adw::NavigationPage {
+                    #[wrap(Some)]
+                    set_child = model.content.widget(),
+                    set_title: "Message list",
+                }
             }
         }
     }
 
-    fn init_loading_widgets(root: &mut Self::Root) -> Option<LoadingWidgets> {
+    fn init_loading_widgets(root: Self::Root) -> Option<LoadingWidgets> {
         view! {
                 #[local_ref]
                 root {

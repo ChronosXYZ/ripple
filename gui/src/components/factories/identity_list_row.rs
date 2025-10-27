@@ -1,15 +1,14 @@
-use adw::traits::{ActionRowExt, PreferencesRowExt};
+use crate::icon_names;
+
+use adw::prelude::{ActionRowExt, PreferencesRowExt};
 use gtk::{
     gdk, glib,
-    traits::{ButtonExt, ListBoxRowExt, WidgetExt},
+    prelude::{ButtonExt, ListBoxRowExt, WidgetExt},
 };
 use relm4::{
     prelude::{DynamicIndex, FactoryComponent},
     FactorySender,
 };
-use relm4_icons::icon_name;
-
-use crate::components::identities_list::IdentitiesListInput;
 
 pub struct IdentityListRow {
     pub label: String,
@@ -44,7 +43,6 @@ impl FactoryComponent for IdentityListRow {
     type Input = IdentityListRowInput;
     type Output = IdentityListRowOutput;
     type CommandOutput = IdentityListRowCommand;
-    type ParentInput = IdentitiesListInput;
     type ParentWidget = gtk::ListBox;
 
     view! {
@@ -61,19 +59,19 @@ impl FactoryComponent for IdentityListRow {
             add_prefix = &gtk::Image {},
 
             add_suffix = &gtk::Button {
-                set_icon_name: icon_name::EDIT,
+                set_icon_name: icon_names::EDIT,
                 add_css_class: "circular",
                 add_css_class: "flat",
                 connect_clicked[sender, index] => move |_| {
-                    sender.output(IdentityListRowOutput::RenameIdentity(index.clone()))
+                    let _ = sender.output(IdentityListRowOutput::RenameIdentity(index.clone()));
                 },
             },
             add_suffix = &gtk::Button {
-                set_icon_name: icon_name::X_CIRCULAR,
+                set_icon_name: icon_names::CROSS_LARGE_CIRCLE_OUTLINE,
                 add_css_class: "circular",
                 add_css_class: "flat",
                 connect_clicked[sender, index] => move |_| {
-                    sender.output(IdentityListRowOutput::DeleteIdentity(index.clone()));
+                    let _ = sender.output(IdentityListRowOutput::DeleteIdentity(index.clone()));
                 }
             }
         }
@@ -90,7 +88,7 @@ impl FactoryComponent for IdentityListRow {
     fn init_widgets(
         &mut self,
         index: &Self::Index,
-        root: &Self::Root,
+        root: Self::Root,
         _returned_widget: &<Self::ParentWidget as relm4::factory::FactoryView>::ReturnedWidget,
         sender: FactorySender<Self>,
     ) -> Self::Widgets {
@@ -106,15 +104,6 @@ impl FactoryComponent for IdentityListRow {
         });
 
         widgets
-    }
-
-    fn forward_to_parent(output: Self::Output) -> Option<Self::ParentInput> {
-        Some(match output {
-            IdentityListRowOutput::DeleteIdentity(i) => IdentitiesListInput::DeleteIdentity(i),
-            IdentityListRowOutput::RenameIdentity(i) => {
-                IdentitiesListInput::HandleRenameIdentity(i)
-            }
-        })
     }
 
     fn update_cmd(&mut self, message: Self::CommandOutput, _sender: FactorySender<Self>) {

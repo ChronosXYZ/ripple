@@ -1,10 +1,11 @@
+use crate::icon_names;
+
 use relm4::component::{AsyncComponent, AsyncComponentController, AsyncController};
 use relm4::gtk::prelude::*;
 use relm4::{
     adw, gtk, Component, ComponentController, ComponentParts, ComponentSender, Controller,
     SimpleComponent,
 };
-use relm4_icons::icon_name;
 
 use crate::components::identities_list::IdentitiesListInput;
 
@@ -43,27 +44,25 @@ impl SimpleComponent for AppModel {
 
             set_title = Some("Ripple"),
 
-            gtk::Box {
-                set_orientation: gtk::Orientation::Vertical,
-
-                adw::HeaderBar {
+            adw::ToolbarView {
+                add_top_bar = &adw::HeaderBar {
                     set_centering_policy: adw::CenteringPolicy::Strict,
 
                     #[wrap(Some)]
-                    #[name="view_title"]
-                    set_title_widget = &adw::ViewSwitcherTitle {
+                    set_title_widget = &adw::ViewSwitcher {
                         set_stack: Some(&stack),
-                        set_title: "Ripple"
+                        set_policy: adw::ViewSwitcherPolicy::Wide,
                     },
                     pack_start = if model.show_plus_button {
                         gtk::Button{
-                            set_icon_name: icon_name::PLUS,
+                            set_icon_name: icon_names::PLUS,
                             connect_clicked => AppInput::HandleClickPlusButton
                         }
                     } else { gtk::Box{} }
                 },
 
-                gtk::Box {
+                #[wrap(Some)]
+                set_content = &gtk::Box {
                     set_orientation: gtk::Orientation::Vertical,
                     set_vexpand: true,
 
@@ -74,15 +73,15 @@ impl SimpleComponent for AppModel {
                         connect_visible_child_name_notify => AppInput::PageChanged,
 
                         add_titled[Some("identities"), "Identities"] = model.identities_list.widget() -> &gtk::ScrolledWindow{} -> {
-                            set_icon_name: Some(icon_name::PERSON),
+                            set_icon_name: Some(icon_names::PERSON),
                         },
 
                         add_titled[Some("messages"), "Messages"] = model.messages.widget() -> &gtk::ScrolledWindow {} -> {
-                            set_icon_name: Some(icon_name::MAIL_INBOX_FILLED),
+                            set_icon_name: Some(icon_names::MAIL_INBOX_FILLED),
                         },
 
                         add_titled[Some("status"), "Network Status"] = model.network_status.widget() -> &gtk::ScrolledWindow {} -> {
-                            set_icon_name: Some(icon_name::DESKTOP_PULSE_FILLED),
+                            set_icon_name: Some(icon_names::DESKTOP_PULSE_FILLED),
                         },
                     },
 
@@ -97,7 +96,7 @@ impl SimpleComponent for AppModel {
 
     fn init(
         _init: Self::Init,
-        root: &Self::Root,
+        root: Self::Root,
         sender: relm4::ComponentSender<Self>,
     ) -> relm4::ComponentParts<Self> {
         let identities_list_component =
@@ -135,10 +134,6 @@ impl SimpleComponent for AppModel {
             _ => model.show_plus_button = false,
         };
         model.stack = widgets.stack.clone();
-        widgets
-            .view_title
-            .bind_property("title-visible", &widgets.view_bar, "reveal")
-            .build();
 
         ComponentParts { model, widgets }
     }

@@ -3,8 +3,7 @@ use std::cell::Ref;
 use chrono::Utc;
 use gtk::{
     glib::BoxedAnyObject,
-    prelude::Cast,
-    traits::{OrientableExt, TextBufferExt, TextViewExt, WidgetExt},
+    prelude::{Cast, OrientableExt, TextBufferExt, TextViewExt, WidgetExt},
 };
 use relm4::{
     component::{AsyncComponent, AsyncComponentParts},
@@ -145,7 +144,7 @@ impl AsyncComponent for MessagesContent {
         }
     }
 
-    fn init_loading_widgets(root: &mut Self::Root) -> Option<LoadingWidgets> {
+    fn init_loading_widgets(root: Self::Root) -> Option<LoadingWidgets> {
         view! {
                 #[local_ref]
                 root {

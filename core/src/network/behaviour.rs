@@ -141,6 +141,7 @@ pub struct BitmessageNetBehaviour {
 #[derive(Debug)]
 pub enum BitmessageBehaviourEvent {
     RequestResponse(request_response::Event<BitmessageRequest, BitmessageResponse>),
+    #[allow(dead_code)]
     Kademlia(KademliaEvent),
     Identify(identify::Event),
     Gossipsub(gossipsub::Event),

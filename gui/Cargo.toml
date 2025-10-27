@@ -8,24 +8,13 @@ edition = "2021"
 [dependencies]
 arrayref = "0.3.7"
 async-std = { workspace = true }
-relm4 = { version = "0.6.2", features = ["libadwaita"] }
-relm4-components = "0.6.2"
-relm4-icons = { version = "0.6.0", features = [
-    "person",
-    "mail-inbox-filled",
-    "desktop-pulse-filled",
-    "plus",
-    "pencil-and-paper",
-    "x-circular",
-    "edit",
-] }
+relm4 = { version = "0.10.0", features = ["libadwaita"] }
+relm4-components = "0.10.0"
+relm4-icons = { version = "0.10.0" }
 directories = { workspace = true }
 identicon-rs = "4.0.1"
-adw = { package = "libadwaita", version = "0.4.1", features = [
-    "gtk_v4_6",
-    "v1_3",
-] }
-gtk = { package = "gtk4", version = "0.6.6", features = ["v4_10"] }
+adw = { package = "libadwaita", version = "0.8.0", features = ["v1_5"] }
+gtk = { package = "gtk4", version = "0.10.1", features = ["v4_14"] }
 mail-parser = "0.8.2"
 
 log = { workspace = true }
@@ -33,3 +22,6 @@ pretty_env_logger = { workspace = true }
 chrono = { workspace = true }
 
 ripple-core = { workspace = true }
+
+[build-dependencies]
+relm4-icons-build = "0.10"

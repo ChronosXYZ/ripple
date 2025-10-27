@@ -8,7 +8,10 @@ use relm4::{
 };
 use relm4::{Component, ComponentController, Controller, RelmWidgetExt};
 
-use crate::components::dialogs::identity_dialog::IdentityDialogOutput;
+use crate::components::{
+    dialogs::identity_dialog::IdentityDialogOutput,
+    factories::identity_list_row::IdentityListRowOutput,
+};
 
 use crate::state;
 
@@ -191,7 +194,7 @@ impl AsyncComponent for IdentitiesListModel {
         }
     }
 
-    fn init_loading_widgets(root: &mut Self::Root) -> Option<LoadingWidgets> {
+    fn init_loading_widgets(root: Self::Root) -> Option<LoadingWidgets> {
         view! {
                 #[local_ref]
                 root {
@@ -220,7 +223,14 @@ impl AsyncComponent for IdentitiesListModel {
         //let list_view_wrapper: TypedListView<IdentityItem, gtk::SingleSelection, gtk::ColumnView> =
         //    TypedListView::with_sorting_col(vec!["Label".to_string(), "Address".to_string()]);
         let list_view = gtk::ListBox::default();
-        let list_view_factory = FactoryVecDeque::new(list_view.clone(), sender.input_sender());
+        let list_view_factory = FactoryVecDeque::builder()
+            .launch(list_view.clone())
+            .forward(sender.input_sender(), |output| match output {
+                IdentityListRowOutput::DeleteIdentity(i) => IdentitiesListInput::DeleteIdentity(i),
+                IdentityListRowOutput::RenameIdentity(i) => {
+                    IdentitiesListInput::HandleRenameIdentity(i)
+                }
+            });
 
         let mut model = Self {
             is_list_empty: true,

@@ -1,7 +1,8 @@
+use crate::icon_names;
+
 use adw;
 use gtk::{self, prelude::*};
 use relm4::{Component, ComponentParts, ComponentSender, RelmWidgetExt};
-use relm4_icons::icon_name;
 
 pub struct IdentityDialogModel {
     pub label: gtk::EntryBuffer,
@@ -68,8 +69,8 @@ impl Component for IdentityDialogModel {
                     gtk::Image {
                             set_icon_size: gtk::IconSize::Large,
                             set_icon_name: Some(match model.mode {
-                                IdentityDialogMode::New => icon_name::PLUS,
-                                IdentityDialogMode::Edit => icon_name::PENCIL_AND_PAPER
+                                IdentityDialogMode::New => icon_names::PLUS,
+                                IdentityDialogMode::Edit => icon_names::EDIT
                             }),
                     },
                     gtk::Label {
@@ -100,7 +101,7 @@ impl Component for IdentityDialogModel {
 
     fn init(
         init: Self::Init,
-        root: &Self::Root,
+        root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         let model = if let Some(name) = init {

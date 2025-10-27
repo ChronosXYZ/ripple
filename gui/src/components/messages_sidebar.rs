@@ -3,8 +3,7 @@ use std::cell::{Ref, RefMut};
 use gtk::{
     self, gio,
     glib::BoxedAnyObject,
-    prelude::{Cast, CastNone, ObjectExt, StaticType},
-    traits::{OrientableExt, WidgetExt},
+    prelude::{Cast, CastNone, ListItemExt, ObjectExt, OrientableExt, WidgetExt},
 };
 use relm4::{
     component::{AsyncComponentParts, SimpleAsyncComponent},
@@ -120,7 +119,7 @@ impl SimpleAsyncComponent for MessagesSidebar {
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let root_store = gio::ListStore::new(BoxedAnyObject::static_type());
+        let root_store = gio::ListStore::new::<BoxedAnyObject>();
 
         let identities = state::STATE
             .write_inner()
@@ -145,7 +144,7 @@ impl SimpleAsyncComponent for MessagesSidebar {
             let boxed_object = o.clone().downcast::<BoxedAnyObject>().unwrap();
             let item: Ref<FolderItem> = boxed_object.borrow();
             if let FolderItemType::Identity = item.item_type {
-                let inner_folders = gio::ListStore::new(BoxedAnyObject::static_type());
+                let inner_folders = gio::ListStore::new::<BoxedAnyObject>();
                 inner_folders.append(&BoxedAnyObject::new(FolderItem {
                     label: "Inbox".to_string(),
                     subtitle: String::new(),

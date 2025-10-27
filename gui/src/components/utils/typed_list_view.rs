@@ -6,8 +6,11 @@ use std::cmp::Ordering;
 use std::marker::PhantomData;
 use std::usize;
 
-use gtk::prelude::{Cast, CastNone, IsA, ListModelExt, ObjectExt, StaticType};
 use gtk::{gio, glib};
+use gtk::{
+    glib::BoxedAnyObject,
+    prelude::{Cast, CastNone, IsA, ListItemExt, ListModelExt, ObjectExt},
+};
 
 pub fn get_value<T: 'static>(obj: &glib::Object) -> Ref<'_, T> {
     let wrapper = obj.downcast_ref::<glib::BoxedAnyObject>().unwrap();
@@ -92,7 +95,7 @@ where
     }
 
     pub fn with_columns(columns: Vec<String>, sort_fn: OrdFn<T>) -> Self {
-        let store = gio::ListStore::new(glib::BoxedAnyObject::static_type());
+        let store = gio::ListStore::new::<BoxedAnyObject>();
 
         let model: gio::ListModel = store.clone().upcast();
 
@@ -201,7 +204,7 @@ where
     }
 
     fn new(sort_fn: OrdFn<T>) -> Self {
-        let store = gio::ListStore::new(glib::BoxedAnyObject::static_type());
+        let store = gio::ListStore::new::<BoxedAnyObject>();
 
         let factory = gtk::SignalListItemFactory::new();
         factory.connect_setup(move |_, list_item| {

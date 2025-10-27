@@ -4,10 +4,9 @@ use adw;
 use gtk::{
     self, gio,
     glib::BoxedAnyObject,
-    prelude::{Cast, CastNone, EntryBufferExtManual, ObjectExt, StaticType},
-    traits::{
-        ButtonExt, EntryExt, GridExt, GtkWindowExt, OrientableExt, TextBufferExt, TextViewExt,
-        WidgetExt,
+    prelude::{
+        ButtonExt, Cast, CastNone, EntryBufferExtManual, EntryExt, GridExt, GtkWindowExt,
+        ListItemExt, ObjectExt, OrientableExt, TextBufferExt, TextViewExt, WidgetExt,
     },
 };
 use relm4::{
@@ -207,7 +206,7 @@ impl AsyncComponent for MessageComposer {
             unsafe { root.set_data("widgets", widgets) };
         });
 
-        let store = gio::ListStore::new(BoxedAnyObject::static_type());
+        let store = gio::ListStore::new::<BoxedAnyObject>();
         let items: Vec<IdentityDropdownItem> = identities
             .iter()
             .map(|x| IdentityDropdownItem {
