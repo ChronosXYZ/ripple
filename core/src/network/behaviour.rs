@@ -134,7 +134,7 @@ pub struct BitmessageNetBehaviour {
     pub identify: identify::Behaviour,
     pub kademlia: Kademlia<MemoryStore>,
     pub rpc: request_response::Behaviour<BitmessageProtocolCodec>,
-    pub mdns: mdns::async_io::Behaviour,
+    pub mdns: mdns::tokio::Behaviour,
     pub keep_alive: keep_alive::Behaviour,
 }
 

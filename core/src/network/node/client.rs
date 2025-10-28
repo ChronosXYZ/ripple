@@ -2,11 +2,8 @@ use emailmessage::{header, Message, SinglePart};
 use std::error::Error;
 
 use chrono::Utc;
-use futures::{
-    channel::{mpsc, oneshot},
-    SinkExt,
-};
 use libp2p::{Multiaddr, PeerId};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     network::address::Address,
@@ -54,8 +51,11 @@ impl NodeClient {
         receiver.await.expect("Sender not to be dropped")
     }
 
-    pub fn shutdown(&mut self) {
-        self.sender.close_channel();
+    pub async fn shutdown(&mut self) {
+        self.sender
+            .send(WorkerCommand::Shutdown)
+            .await
+            .expect("Command receiver not to be dropped");
     }
 
     pub async fn get_own_identities(&mut self) -> Vec<Address> {

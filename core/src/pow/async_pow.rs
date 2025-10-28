@@ -1,18 +1,17 @@
-use async_std::task;
-use futures::{
-    channel::{mpsc, oneshot},
-    select, FutureExt, SinkExt, StreamExt,
-};
 use log::info;
 use num_bigint::BigUint;
 use sha2::{Digest, Sha512};
+use tokio::{
+    sync::{mpsc, oneshot},
+    task,
+};
 
 pub struct AsyncPoW {}
 
 impl AsyncPoW {
     pub fn do_pow(target: BigUint, initial_hash: Vec<u8>) -> oneshot::Receiver<(BigUint, BigUint)> {
         let (mut sender, receiver) = oneshot::channel();
-        let (internal_sender, mut internal_receiver) = mpsc::channel(1);
+        let (result_sender, mut result_receiver) = mpsc::channel(1);
 
         let mut workers = Vec::new();
         let num_of_cores = num_cpus::get(); // TODO make this setting configurable
@@ -20,7 +19,7 @@ impl AsyncPoW {
         for i in 0..num_of_cores {
             let t = target.clone();
             let ih = initial_hash.clone();
-            let mut s = internal_sender.clone();
+            let result_sender = result_sender.clone();
             let (term_tx, mut term_rx) = oneshot::channel();
             task::spawn_blocking(move || {
                 info!("PoW has started");
@@ -36,7 +35,7 @@ impl AsyncPoW {
                 }
 
                 if !term_rx.try_recv().is_err() {
-                    task::block_on(s.send((trial_value, nonce))).unwrap();
+                    result_sender.blocking_send((trial_value, nonce)).unwrap();
                 }
 
                 info!("PoW has ended");
@@ -45,24 +44,23 @@ impl AsyncPoW {
         }
 
         task::spawn(async move {
-            let mut cancellation_task = sender.cancellation().fuse();
-            select! {
-                () = cancellation_task => {
+            tokio::select! {
+                _ = sender.closed() => {
                     log::debug!("cancelling workers");
                     for w in workers.into_iter() {
                         _ = w.send(());
                     }
-                    internal_receiver.close();
+                    result_receiver.close();
                     return;
                 },
-                result = internal_receiver.next() => {
+                result = result_receiver.recv() => {
                     if let Some(res) = result {
                         log::debug!("cancelling workers");
                         for w in workers.into_iter() {
                             _ = w.send(());
                         }
                         sender.send(res).expect("receiver not to be dropped");
-                        internal_receiver.close();
+                        result_receiver.close();
                     }
                 }
             }

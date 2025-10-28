@@ -1,10 +1,10 @@
 use crate::pow::{self, async_pow::AsyncPoW};
-use async_std::task;
 use chrono::Utc;
-use futures::{channel::mpsc, FutureExt, SinkExt};
+use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sha2::Digest;
+use tokio::{sync::mpsc, task};
 
 use super::{address::Address, node::pow_worker::ProofOfWorkWorkerCommand};
 
@@ -78,7 +78,7 @@ impl Object {
         object
     }
 
-    pub fn do_proof_of_work(mut self, mut worker_sink: mpsc::Sender<ProofOfWorkWorkerCommand>) {
+    pub fn do_proof_of_work(mut self, worker_sink: mpsc::Sender<ProofOfWorkWorkerCommand>) {
         let target = pow::get_pow_target(
             &self,
             pow::NETWORK_MIN_NONCE_TRIALS_PER_BYTE,

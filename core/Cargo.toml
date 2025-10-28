@@ -9,7 +9,7 @@ edition = "2021"
 async-trait = "0.1.73"
 log = { workspace = true }
 libp2p = { version = "0.51.3", features = [
-    "async-std",
+    "tokio",
     "dns",
     "macros",
     "noise",
@@ -23,7 +23,6 @@ libp2p = { version = "0.51.3", features = [
     "identify",
     "mdns",
 ] }
-async-std = { workspace = true }
 chrono = { workspace = true }
 ecies = "0.2.3"
 serde = { version = "1.0.160", features = ["derive"] }
@@ -56,3 +55,4 @@ sqlx = { version = "0.7.1", features = [
 queues = "1.1.0"
 timer = "0.2.0"
 dyn-clone = "1.0.13"
+tokio = { workspace = true }

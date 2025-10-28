@@ -1,12 +1,11 @@
 use std::error::Error;
 
-use async_std::task;
 use chrono::Utc;
-use futures::{
-    channel::{mpsc, oneshot},
-    SinkExt,
-};
 use num_bigint::BigUint;
+use tokio::{
+    sync::{mpsc, oneshot},
+    task,
+};
 
 use crate::{
     network::{
@@ -31,7 +30,7 @@ pub struct Handler {
     requested_objects: Vec<String>, // TODO periodically request missing object from every connection we have
     worker_event_sender: mpsc::Sender<WorkerCommand>,
     pubkey_notifier_sink: mpsc::Sender<String>,
-    pow_worker_sink: Option<mpsc::Sender<ProofOfWorkWorkerCommand>>,
+    pow_worker_sink: mpsc::Sender<ProofOfWorkWorkerCommand>,
 }
 
 impl Handler {
@@ -41,6 +40,7 @@ impl Handler {
         message_repo: Box<MessageRepositorySync>,
         worker_event_sender: mpsc::Sender<WorkerCommand>,
         pubkey_notifier_sink: mpsc::Sender<String>,
+        pow_worker_sink: mpsc::Sender<ProofOfWorkWorkerCommand>,
     ) -> Handler {
         Handler {
             address_repo,
@@ -49,12 +49,8 @@ impl Handler {
             requested_objects: Vec::new(),
             worker_event_sender,
             pubkey_notifier_sink,
-            pow_worker_sink: None,
+            pow_worker_sink,
         }
-    }
-
-    pub fn set_pow_worker_sink(&mut self, sink: mpsc::Sender<ProofOfWorkWorkerCommand>) {
-        self.pow_worker_sink = Some(sink);
     }
 
     pub async fn handle_message(&mut self, msg: NetworkMessage) -> Option<NetworkMessage> {
@@ -358,8 +354,6 @@ impl Handler {
 
     async fn enqueue_pow(&mut self, object: Object) {
         self.pow_worker_sink
-            .as_mut()
-            .unwrap()
             .send(ProofOfWorkWorkerCommand::EnqueuePoW { object })
             .await
             .expect("command successfully sent");

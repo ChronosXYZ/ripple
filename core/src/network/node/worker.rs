@@ -1,20 +1,10 @@
-use async_std::task;
-use chrono::Utc;
-use rand::distributions::{Alphanumeric, DistString};
-use sqlx::{
-    migrate::Migrator,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
-    SqlitePool,
-};
 use std::{
     borrow::Cow, collections::HashMap, error::Error, fs, iter, path::PathBuf, str::FromStr,
     time::Duration,
 };
 
-use futures::{
-    channel::{mpsc, oneshot},
-    select, SinkExt, StreamExt,
-};
+use chrono::Utc;
+use futures::{future, StreamExt};
 use libp2p::{
     core::upgrade::Version,
     gossipsub::{self, MessageId, PublishError, Sha256Topic},
@@ -26,7 +16,18 @@ use libp2p::{
     tcp, yamux, Multiaddr, PeerId, Swarm, Transport,
 };
 use log::{debug, info};
+use rand::distributions::{Alphanumeric, DistString};
 use serde::Serialize;
+use sqlx::{
+    migrate::Migrator,
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
+    SqlitePool,
+};
+use tokio::{
+    select,
+    sync::{mpsc, oneshot},
+    task,
+};
 
 use crate::{
     network::{
@@ -122,13 +123,14 @@ pub enum WorkerCommand {
         from: String,
         sender: oneshot::Sender<Result<(), DynError>>,
     },
+    Shutdown,
 }
 
 pub struct NodeWorker {
     local_peer_id: PeerId,
     swarm: Swarm<BitmessageNetBehaviour>,
     handler: Handler,
-    command_sender: mpsc::Sender<WorkerCommand>,
+    _command_sender: mpsc::Sender<WorkerCommand>,
     command_receiver: mpsc::Receiver<WorkerCommand>,
 
     pubkey_notifier: mpsc::Receiver<String>,
@@ -142,11 +144,12 @@ pub struct NodeWorker {
     address_repo: Box<AddressRepositorySync>,
     messages_repo: Box<MessageRepositorySync>,
 
-    pow_worker_command_sink: Option<mpsc::Sender<ProofOfWorkWorkerCommand>>,
+    pow_worker_command_sink: mpsc::Sender<ProofOfWorkWorkerCommand>,
+    pow_worker: Option<ProofOfWorkWorker>,
 }
 
 impl NodeWorker {
-    pub fn new(
+    pub async fn new(
         bootstrap_nodes: Option<Vec<Multiaddr>>,
         data_dir: PathBuf,
     ) -> (NodeWorker, mpsc::Sender<WorkerCommand>) {
@@ -154,13 +157,13 @@ impl NodeWorker {
         let local_peer_id = PeerId::from(local_key.public());
         info!("Local peer id: {:?}", local_peer_id);
 
-        let transport = tcp::async_io::Transport::default()
+        let transport = tcp::tokio::Transport::default()
             .upgrade(Version::V1Lazy)
             .authenticate(noise::Config::new(&local_key).unwrap())
             .multiplex(yamux::Config::default())
             .boxed();
 
-        let mut swarm = SwarmBuilder::with_async_std_executor(
+        let mut swarm = SwarmBuilder::with_tokio_executor(
             transport,
             BitmessageNetBehaviour {
                 gossipsub: gossipsub::Behaviour::new(
@@ -186,8 +189,7 @@ impl NodeWorker {
                     IDENTIFY_PROTO_NAME.to_string(),
                     local_key.public(),
                 )),
-                mdns: mdns::async_io::Behaviour::new(mdns::Config::default(), local_peer_id)
-                    .unwrap(),
+                mdns: mdns::tokio::Behaviour::new(mdns::Config::default(), local_peer_id).unwrap(),
                 keep_alive: keep_alive::Behaviour::default(),
             },
             local_peer_id,
@@ -239,14 +241,23 @@ impl NodeWorker {
                 .synchronous(SqliteSynchronous::Normal)
                 .busy_timeout(POOL_TIMEOUT);
 
-        let pool = task::block_on(SqlitePoolOptions::new().connect_with(connect_options))
+        let pool = SqlitePoolOptions::new()
+            .connect_with(connect_options)
+            .await
             .expect("pool open");
 
-        task::block_on(MIGRATIONS.run(&pool)).expect("migrations not to fail");
+        MIGRATIONS.run(&pool).await.expect("migrations not to fail");
 
         let inventory_repo = Box::new(SqliteInventoryRepository::new(pool.clone()));
         let address_repo = Box::new(SqliteAddressRepository::new(pool.clone()));
         let message_repo = Box::new(SqliteMessageRepository::new(pool.clone()));
+
+        let (pow_worker, pow_worker_command_sink) = ProofOfWorkWorker::new(
+            inventory_repo.clone(),
+            message_repo.clone(),
+            address_repo.clone(),
+            sender.clone(),
+        );
 
         (
             Self {
@@ -258,8 +269,9 @@ impl NodeWorker {
                     message_repo.clone(),
                     sender.clone(),
                     pubkey_notifier_sink,
+                    pow_worker_command_sink.clone(),
                 ),
-                command_sender: sender.clone(),
+                _command_sender: sender.clone(),
                 pubkey_notifier,
                 tracked_pubkeys: HashMap::new(),
                 command_receiver: receiver,
@@ -271,7 +283,8 @@ impl NodeWorker {
                 inventory_repo: inventory_repo.clone(),
                 messages_repo: message_repo.clone(),
 
-                pow_worker_command_sink: None,
+                pow_worker_command_sink,
+                pow_worker: Some(pow_worker),
             },
             sender,
         )
@@ -538,7 +551,7 @@ impl NodeWorker {
                         let object = create_object_from_msg(&identity, &v, msg.clone());
                         msg.hash = bs58::encode(&object.hash).into_string();
                         self.messages_repo.save_model(msg).await.unwrap();
-                        self.enqueue_pow(object).await;
+                        enqueue_pow(self.pow_worker_command_sink.clone(), object).await;
                     }
                     None => {
                         let recipient_address = Address::with_string_repr(msg.recipient.clone());
@@ -561,11 +574,12 @@ impl NodeWorker {
                             },
                             Utc::now() + chrono::Duration::days(7),
                         );
-                        self.enqueue_pow(obj).await;
+                        enqueue_pow(self.pow_worker_command_sink.clone(), obj).await;
                     }
                 }
                 sender.send(Ok(())).unwrap();
             }
+            _ => {}
         };
     }
 
@@ -578,15 +592,7 @@ impl NodeWorker {
     }
 
     pub async fn run(mut self) {
-        let (pow_worker, pow_worker_sink) = ProofOfWorkWorker::new(
-            self.inventory_repo.clone(),
-            self.messages_repo.clone(),
-            self.address_repo.clone(),
-            self.command_sender.clone(),
-        );
-        self.pow_worker_command_sink = Some(pow_worker_sink.clone());
-        self.handler.set_pow_worker_sink(pow_worker_sink);
-        task::spawn(pow_worker.run());
+        task::spawn(self.pow_worker.take().unwrap().run());
 
         // populate tracked_pubkeys map
         let msgs_waiting_for_pubkey = self
@@ -629,15 +635,23 @@ impl NodeWorker {
         loop {
             select! {
                 event = self.swarm.select_next_some() => self.handle_event(event).await,
-                command = self.command_receiver.next() => match command {
-                    Some(c) => self.handle_command(c).await,
+                command = self.command_receiver.recv() => match command {
+                    Some(c) => {
+                        match c {
+                            WorkerCommand::Shutdown => {
+                                log::debug!("Shutting down network event loop...");
+                                return;
+                            },
+                            _ => self.handle_command(c).await,
+                        }
+                    }
                     // Command channel closed, thus shutting down the network event loop.
                     None => {
                         log::debug!("Shutting down network event loop...");
                         return;
                     },
                 },
-                pubkey_notification = self.pubkey_notifier.next() => self.handle_pubkey_notification(pubkey_notification.unwrap()).await,
+                pubkey_notification = self.pubkey_notifier.recv() => self.handle_pubkey_notification(pubkey_notification.unwrap()).await,
             }
         }
     }
@@ -655,25 +669,36 @@ impl NodeWorker {
                 .get_messages_by_recipient(addr.string_repr.clone())
                 .await
                 .unwrap();
-            msgs.into_iter()
-                .filter(|x| x.status == MessageStatus::WaitingForPubkey.to_string())
+            futures::stream::iter(msgs.into_iter())
+                .filter(|x| future::ready(x.status == MessageStatus::WaitingForPubkey.to_string()))
                 .for_each(|x| {
-                    let identity =
-                        task::block_on(self.address_repo.get_by_ripe_or_tag(x.sender.clone()))
+                    let address_repo = self.address_repo.clone();
+                    let mut messages_repo = self.messages_repo.clone();
+                    let addr = addr.clone();
+                    let pow_worker_command_sink = self.pow_worker_command_sink.clone();
+                    async move {
+                        let identity = address_repo
+                            .get_by_ripe_or_tag(x.sender.clone())
+                            .await
                             .unwrap()
                             .expect("identity exists in address repo");
-                    let object = create_object_from_msg(&identity, &addr, x.clone());
-                    let old_hash = x.hash.clone();
-                    let new_hash = bs58::encode(&object.hash).into_string();
-                    task::block_on(self.messages_repo.update_hash(old_hash, new_hash.clone()))
-                        .unwrap();
-                    task::block_on(
-                        self.messages_repo
-                            .update_message_status(new_hash, MessageStatus::WaitingForPOW),
-                    )
-                    .unwrap();
-                    task::block_on(self.enqueue_pow(object));
-                });
+                        let object = create_object_from_msg(&identity, &addr, x.clone());
+                        let old_hash = x.hash.clone();
+                        let new_hash = bs58::encode(&object.hash).into_string();
+                        messages_repo
+                            .update_hash(old_hash, new_hash.clone())
+                            .await
+                            .unwrap();
+
+                        messages_repo
+                            .update_message_status(new_hash, MessageStatus::WaitingForPOW)
+                            .await
+                            .unwrap();
+                        enqueue_pow(pow_worker_command_sink, object).await;
+                    }
+                })
+                .await;
+
             self.tracked_pubkeys.remove(&tag);
         }
     }
@@ -737,15 +762,13 @@ impl NodeWorker {
             }),
         );
     }
+}
 
-    async fn enqueue_pow(&mut self, object: Object) {
-        self.pow_worker_command_sink
-            .as_mut()
-            .unwrap()
-            .send(ProofOfWorkWorkerCommand::EnqueuePoW { object })
-            .await
-            .expect("command successfully sent");
-    }
+async fn enqueue_pow(sink: mpsc::Sender<ProofOfWorkWorkerCommand>, object: Object) {
+    let sink = sink.clone();
+    sink.send(ProofOfWorkWorkerCommand::EnqueuePoW { object })
+        .await
+        .expect("command successfully sent");
 }
 
 fn extract_peer_id_from_multiaddr(

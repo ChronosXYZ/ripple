@@ -9,8 +9,11 @@ pub(crate) mod behaviour;
 pub(crate) mod messages;
 pub mod node;
 
-pub fn new(bootstrap_nodes: Option<Vec<Multiaddr>>, data_dir: PathBuf) -> (NodeClient, NodeWorker) {
-    let (worker, sender) = NodeWorker::new(bootstrap_nodes, data_dir);
+pub async fn new(
+    bootstrap_nodes: Option<Vec<Multiaddr>>,
+    data_dir: PathBuf,
+) -> (NodeClient, NodeWorker) {
+    let (worker, sender) = NodeWorker::new(bootstrap_nodes, data_dir).await;
     let client = NodeClient::new(sender);
     (client, worker)
 }

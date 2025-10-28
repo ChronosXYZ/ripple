@@ -1,6 +1,6 @@
 use std::{error::Error, path::PathBuf};
 
-use async_std::task;
+use tokio::task;
 use clap::Parser;
 use ripple_core::network;
 use signal_hook::{
@@ -21,13 +21,13 @@ struct Args {
     port: u16,
 }
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     pretty_env_logger::init();
     let args = Args::parse();
 
     log::debug!("a");
-    let (mut client, worker) = network::new(None, PathBuf::from(args.data_dir));
+    let (mut client, worker) = network::new(None, PathBuf::from(args.data_dir)).await;
 
     task::spawn(worker.run());
 
@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut signals = Signals::new(&[SIGTERM, SIGINT])?;
     for sig in signals.forever() {
         log::debug!("Received signal {:?}", sig);
-        client.shutdown();
+        client.shutdown().await;
         return Ok(());
     }
 

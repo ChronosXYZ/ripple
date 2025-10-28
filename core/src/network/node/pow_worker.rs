@@ -1,5 +1,5 @@
-use futures::{channel::mpsc, select, SinkExt, StreamExt};
 use queues::{queue, IsQueue, Queue};
+use tokio::sync::mpsc;
 
 use crate::{
     network::{address::Address, messages::Object},
@@ -92,8 +92,8 @@ impl ProofOfWorkWorker {
         }
 
         loop {
-            select! {
-                command = self.command_receiver.select_next_some() => {
+            tokio::select! {
+                Some(command) = self.command_receiver.recv() => {
                     match command {
                         ProofOfWorkWorkerCommand::EnqueuePoW { object } => {
                             self.inventory.store_object(object.clone()).await.expect("db won't fail");

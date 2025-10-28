@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 arrayref = "0.3.7"
-async-std = { workspace = true }
+tokio = { workspace = true }
 relm4 = { version = "0.10.0", features = ["libadwaita"] }
 relm4-components = "0.10.0"
 relm4-icons = { version = "0.10.0" }
