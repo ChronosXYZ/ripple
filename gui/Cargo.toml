@@ -21,7 +21,8 @@ log = { workspace = true }
 pretty_env_logger = { workspace = true }
 chrono = { workspace = true }
 
-ripple-core = { workspace = true }
+anyhow.workspace = true
 
+ripple-core = { workspace = true }
 [build-dependencies]
 relm4-icons-build = "0.10"

@@ -55,4 +55,5 @@ sqlx = { version = "0.7.1", features = [
 queues = "1.1.0"
 timer = "0.2.0"
 dyn-clone = "1.0.13"
-tokio = { workspace = true }
+tokio.workspace = true
+anyhow.workspace = true
