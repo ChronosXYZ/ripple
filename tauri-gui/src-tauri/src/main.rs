@@ -11,7 +11,7 @@ async fn main() {
     let dirs = ProjectDirs::from("net", "pigeoncatcher", "ripple").unwrap();
     let data_dir = dirs.data_dir();
 
-    let (mut client, worker) = network::new(None, data_dir.to_path_buf()).await;
+    let (client, worker) = network::new(None, data_dir.to_path_buf()).await;
 
     tauri_gui_lib::run()
 }

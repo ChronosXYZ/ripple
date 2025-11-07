@@ -6302,6 +6302,7 @@ dependencies = [
 name = "ripple-core"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "bs58",
  "bytes 1.10.1",
