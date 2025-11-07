@@ -50,8 +50,8 @@ impl SqliteAddressRepository {
         }
     }
 
-    fn deserialize(m: &models::Address) -> Result<Address, Box<dyn Error>> {
-        let mut address = Address::with_string_repr(m.address.clone());
+    fn deserialize(m: &models::Address) -> anyhow::Result<Address> {
+        let mut address = Address::with_string_repr(m.address.clone())?;
         let mut psk = None;
         let mut ppsk = None;
         let mut pek = None;

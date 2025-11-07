@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use queues::{queue, IsQueue, Queue};
-use tokio::sync::mpsc;
+use tokio::{runtime::Runtime, sync::mpsc};
 
 use crate::{
     network::{address::Address, messages::Object},
@@ -25,6 +27,7 @@ pub struct ProofOfWorkWorker {
     command_receiver: mpsc::Receiver<ProofOfWorkWorkerCommand>,
     is_pow_running: bool,
     waiting_objects: Queue<Object>,
+    runtime: Arc<Runtime>,
 }
 
 impl ProofOfWorkWorker {
@@ -46,6 +49,7 @@ impl ProofOfWorkWorker {
                 command_receiver: cmd_receiver,
                 waiting_objects: queue![],
                 is_pow_running: false,
+                runtime: Arc::new(Runtime::new().unwrap()),
             },
             cmd_sink,
         );
@@ -106,7 +110,7 @@ impl ProofOfWorkWorker {
                             self.node_worker_sink.send(WorkerCommand::NonceCalculated { obj: object }).await.expect("command successfully sent");
                             match self.waiting_objects.remove() {
                                 Ok(o) => {
-                                    o.do_proof_of_work(self.command_sink.clone())
+                                    o.do_proof_of_work(self.runtime.clone(), self.command_sink.clone())
                                 },
                                 Err(_) => {
                                     self.is_pow_running = false;
@@ -123,7 +127,7 @@ impl ProofOfWorkWorker {
         if self.is_pow_running {
             self.waiting_objects.add(object).unwrap();
         } else {
-            object.do_proof_of_work(self.command_sink.clone());
+            object.do_proof_of_work(self.runtime.clone(), self.command_sink.clone());
             self.is_pow_running = true;
         }
     }

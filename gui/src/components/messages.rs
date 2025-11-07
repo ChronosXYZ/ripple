@@ -7,6 +7,7 @@ use relm4::{
     view,
 };
 use relm4::{AsyncComponentSender, RelmWidgetExt};
+use ripple_core::network::node::client::NodeClient;
 
 use super::messages_content::{MessagesContent, MessagesContentInput};
 use super::messages_sidebar::{
@@ -29,7 +30,7 @@ impl AsyncComponent for MessagesModel {
     type CommandOutput = ();
     type Input = MessagesInput;
     type Output = ();
-    type Init = ();
+    type Init = NodeClient;
 
     view! {
         #[root]
@@ -74,16 +75,16 @@ impl AsyncComponent for MessagesModel {
     }
 
     async fn init(
-        _init: Self::Init,
+        node_client: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
         let sidebar = MessagesSidebar::builder()
-            .launch(())
+            .launch(node_client.clone())
             .forward(sender.input_sender(), |msg| match msg {
                 MessagesSidebarOutput::FolderSelected(v) => MessagesInput::FolderSelected(v),
             });
-        let content = MessagesContent::builder().launch(()).detach();
+        let content = MessagesContent::builder().launch(node_client).detach();
         let model = Self { sidebar, content };
         let widgets = view_output!();
         AsyncComponentParts { model, widgets }

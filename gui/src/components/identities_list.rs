@@ -1,74 +1,31 @@
 use gtk::{self, prelude::*};
-use relm4::factory::FactoryVecDeque;
 use relm4::prelude::DynamicIndex;
 use relm4::{
     component::{AsyncComponent, AsyncComponentParts},
     loading_widgets::LoadingWidgets,
     view,
 };
+use relm4::{factory::FactoryVecDeque, AsyncComponentSender};
 use relm4::{Component, ComponentController, Controller, RelmWidgetExt};
+use ripple_core::network::address::Address;
+use ripple_core::network::node::client::NodeClient;
 
 use crate::components::{
     dialogs::identity_dialog::IdentityDialogOutput,
     factories::identity_list_row::IdentityListRowOutput,
 };
 
-use crate::state;
-
 use super::dialogs::identity_dialog::{IdentityDialogInit, IdentityDialogModel};
 use super::factories::identity_list_row::{
     IdentityListRow, IdentityListRowInit, IdentityListRowInput,
 };
-
-//#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-//struct IdentityItem {
-//    label: String,
-//    address: String,
-//}
-//
-//impl IdentityItem {
-//    fn new(label: String, address: String) -> Self {
-//        Self { label, address }
-//    }
-//}
-//
-//struct Widgets {
-//    label: gtk::Label,
-//}
-//
-//impl RelmListItem for IdentityItem {
-//    type Root = gtk::Box;
-//    type Widgets = Widgets;
-//
-//    fn setup(_item: &gtk::ListItem, column_index: usize) -> (gtk::Box, Widgets) {
-//        relm4::view! {
-//            my_box = gtk::Box {
-//                #[name = "label"]
-//                gtk::Label,
-//            }
-//        }
-//
-//        let widgets = Widgets { label };
-//
-//        (my_box, widgets)
-//    }
-//
-//    fn bind(&mut self, widgets: &mut Self::Widgets, _root: &mut Self::Root, column_index: usize) {
-//        let Widgets { label } = widgets;
-//
-//        if column_index == 0 {
-//            label.set_label(&self.label);
-//        } else if column_index == 1 {
-//            label.set_label(&self.address);
-//        }
-//    }
-//}
 
 pub(crate) struct IdentitiesListModel {
     is_list_empty: bool,
     //list_view_wrapper: TypedListView<IdentityItem, gtk::SingleSelection, gtk::ColumnView>,
     identity_dialog: Controller<IdentityDialogModel>,
     list_view: FactoryVecDeque<IdentityListRow>,
+    node_client: NodeClient,
 }
 
 #[derive(Debug)]
@@ -84,6 +41,7 @@ pub enum IdentitiesListInput {
         address: String,
         index: usize,
     },
+    ReloadList,
 }
 
 #[derive(Debug)]
@@ -92,36 +50,12 @@ pub enum IdentitiesListOutput {
     IdentitiesListUpdated,
 }
 
-impl IdentitiesListModel {
-    async fn reload_list(&mut self, sender: relm4::AsyncComponentSender<Self>) {
-        let identities = state::STATE
-            .write_inner()
-            .client
-            .as_mut()
-            .unwrap()
-            .get_own_identities()
-            .await;
-        if !identities.is_empty() {
-            self.is_list_empty = false;
-            sender
-                .output(IdentitiesListOutput::EmptyList(false))
-                .unwrap();
-        } else {
-            self.is_list_empty = true;
-            sender
-                .output(IdentitiesListOutput::EmptyList(true))
-                .unwrap();
-        }
-        let mut guard = self.list_view.guard();
-        guard.clear();
-        for i in identities {
-            guard.push_back(IdentityListRowInit {
-                label: i.label,
-                address: i.string_repr,
-            });
-        }
-    }
+#[derive(Debug)]
+pub enum IdentitiesListCommandOutput {
+    IdentitiesList(Vec<Address>),
+}
 
+impl IdentitiesListModel {
     fn create_identity_dialog_controller(
         sender: relm4::AsyncComponentSender<Self>,
         init: Option<IdentityDialogInit>,
@@ -147,10 +81,10 @@ impl IdentitiesListModel {
 
 #[relm4::component(pub async)]
 impl AsyncComponent for IdentitiesListModel {
-    type CommandOutput = ();
     type Input = IdentitiesListInput;
     type Output = IdentitiesListOutput;
-    type Init = ();
+    type Init = NodeClient;
+    type CommandOutput = IdentitiesListCommandOutput;
 
     view! {
         #[root]
@@ -177,11 +111,6 @@ impl AsyncComponent for IdentitiesListModel {
                         }
                     },
 
-                    //#[local_ref]
-                    //col_view -> gtk::ColumnView {
-                    //    #[watch]
-                    //    set_visible: !model.is_list_empty,
-                    //}
                     #[local]
                     list_view -> gtk::ListBox {
                         set_valign: gtk::Align::Start,
@@ -216,7 +145,7 @@ impl AsyncComponent for IdentitiesListModel {
     }
 
     async fn init(
-        _init: Self::Init,
+        init: Self::Init,
         root: Self::Root,
         sender: relm4::AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
@@ -232,13 +161,14 @@ impl AsyncComponent for IdentitiesListModel {
                 }
             });
 
-        let mut model = Self {
+        let model = Self {
             is_list_empty: true,
             list_view: list_view_factory,
             identity_dialog: Self::create_identity_dialog_controller(sender.clone(), None),
+            node_client: init,
         };
 
-        model.reload_list(sender.clone()).await;
+        sender.input(IdentitiesListInput::ReloadList);
 
         let widgets = view_output!();
         AsyncComponentParts { model, widgets }
@@ -257,13 +187,7 @@ impl AsyncComponent for IdentitiesListModel {
                 self.identity_dialog.widget().present();
             }
             IdentitiesListInput::GenerateNewIdentity { label } => {
-                let address = state::STATE
-                    .write_inner()
-                    .client
-                    .as_mut()
-                    .unwrap()
-                    .generate_new_identity(label.clone())
-                    .await;
+                let address = self.node_client.generate_new_identity(label.clone()).await;
                 self.list_view
                     .guard()
                     .push_back(IdentityListRowInit { label, address });
@@ -283,13 +207,7 @@ impl AsyncComponent for IdentitiesListModel {
                     .guard()
                     .remove(i.current_index())
                     .expect("identity to be existing");
-                state::STATE
-                    .write_inner()
-                    .client
-                    .as_mut()
-                    .unwrap()
-                    .delete_identity(item.address)
-                    .await;
+                self.node_client.delete_identity(item.address).await;
                 if self.list_view.len() == 0 {
                     self.is_list_empty = true;
                     sender
@@ -321,11 +239,7 @@ impl AsyncComponent for IdentitiesListModel {
                 address,
                 index,
             } => {
-                state::STATE
-                    .write_inner()
-                    .client
-                    .as_mut()
-                    .unwrap()
+                self.node_client
                     .rename_identity(address, new_label.clone())
                     .await;
                 self.list_view
@@ -333,6 +247,44 @@ impl AsyncComponent for IdentitiesListModel {
                 sender
                     .output(IdentitiesListOutput::IdentitiesListUpdated)
                     .unwrap();
+            }
+            IdentitiesListInput::ReloadList => {
+                let client = self.node_client.clone();
+                sender.oneshot_command(async move {
+                    let result = client.get_own_identities().await;
+                    IdentitiesListCommandOutput::IdentitiesList(result)
+                });
+            }
+        }
+    }
+
+    async fn update_cmd(
+        &mut self,
+        message: Self::CommandOutput,
+        sender: AsyncComponentSender<Self>,
+        _: &Self::Root,
+    ) {
+        match message {
+            IdentitiesListCommandOutput::IdentitiesList(identities) => {
+                if !identities.is_empty() {
+                    self.is_list_empty = false;
+                    sender
+                        .output(IdentitiesListOutput::EmptyList(false))
+                        .unwrap();
+                } else {
+                    self.is_list_empty = true;
+                    sender
+                        .output(IdentitiesListOutput::EmptyList(true))
+                        .unwrap();
+                }
+                let mut guard = self.list_view.guard();
+                guard.clear();
+                for i in identities {
+                    guard.push_back(IdentityListRowInit {
+                        label: i.label,
+                        address: i.string_repr,
+                    });
+                }
             }
         }
     }

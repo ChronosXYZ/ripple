@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 use crate::pow::{self, async_pow::AsyncPoW};
 use chrono::Utc;
 use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sha2::Digest;
-use tokio::{sync::mpsc, task};
+use tokio::{runtime::Runtime, sync::mpsc};
 
 use super::{address::Address, node::pow_worker::ProofOfWorkWorkerCommand};
 
@@ -78,14 +80,18 @@ impl Object {
         object
     }
 
-    pub fn do_proof_of_work(mut self, worker_sink: mpsc::Sender<ProofOfWorkWorkerCommand>) {
+    pub fn do_proof_of_work(
+        mut self,
+        runtime: Arc<Runtime>,
+        worker_sink: mpsc::Sender<ProofOfWorkWorkerCommand>,
+    ) {
         let target = pow::get_pow_target(
             &self,
             pow::NETWORK_MIN_NONCE_TRIALS_PER_BYTE,
             pow::NETWORK_MIN_EXTRA_BYTES,
         );
 
-        task::spawn(async move {
+        runtime.spawn(async move {
             AsyncPoW::do_pow(target, self.hash.clone())
                 .then(move |res| async move {
                     let (_, nonce) = res.unwrap();

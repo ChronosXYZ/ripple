@@ -9,9 +9,9 @@ use relm4::{
     component::{AsyncComponentParts, SimpleAsyncComponent},
     view, AsyncComponentSender,
 };
+use ripple_core::network::node::client::NodeClient;
 
 use super::utils::typed_list_view::RelmListItem;
-use crate::state;
 
 #[derive(Debug, Clone)]
 pub struct SelectedFolder {
@@ -85,6 +85,7 @@ impl RelmListItem for FolderItem {
 
 pub struct MessagesSidebar {
     tree_model: gtk::TreeListModel,
+    node_client: NodeClient,
 }
 
 #[derive(Debug)]
@@ -99,7 +100,7 @@ pub enum MessagesSidebarOutput {
 
 #[relm4::component(pub async)]
 impl SimpleAsyncComponent for MessagesSidebar {
-    type Init = ();
+    type Init = NodeClient;
     type Input = MessagesSidebarInput;
     type Output = MessagesSidebarOutput;
 
@@ -115,19 +116,13 @@ impl SimpleAsyncComponent for MessagesSidebar {
     }
 
     async fn init(
-        _init: Self::Init,
+        node_client: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
         let root_store = gio::ListStore::new::<BoxedAnyObject>();
 
-        let identities = state::STATE
-            .write_inner()
-            .client
-            .as_mut()
-            .unwrap()
-            .get_own_identities()
-            .await;
+        let identities = node_client.get_own_identities().await;
         for i in identities {
             root_store.append(&BoxedAnyObject::new(FolderItem {
                 label: if i.label.is_empty() {
@@ -240,7 +235,10 @@ impl SimpleAsyncComponent for MessagesSidebar {
                 .unwrap();
         });
 
-        let model = Self { tree_model };
+        let model = Self {
+            tree_model,
+            node_client,
+        };
 
         let widgets = view_output!();
         AsyncComponentParts { model, widgets }
@@ -255,13 +253,7 @@ impl SimpleAsyncComponent for MessagesSidebar {
                     .downcast::<gio::ListStore>()
                     .unwrap();
                 root_model.remove_all();
-                let identities = state::STATE
-                    .write_inner()
-                    .client
-                    .as_mut()
-                    .unwrap()
-                    .get_own_identities()
-                    .await;
+                let identities = self.node_client.get_own_identities().await;
                 for i in identities {
                     root_model.append(&BoxedAnyObject::new(FolderItem {
                         label: if i.label.is_empty() {
