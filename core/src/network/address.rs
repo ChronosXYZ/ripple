@@ -63,11 +63,11 @@ impl Address {
         address
     }
 
-    pub fn with_string_repr(address: String) -> Self {
+    pub fn with_string_repr(address: String) -> anyhow::Result<Self> {
         let ripe = bs58::decode(address)
             .into_vec()
-            .expect("address string to be base58 encoded");
-        Self::new(ripe)
+            .map_err(|e| anyhow::anyhow!("string needs to be base58 encoded: {}", e))?;
+        Ok(Self::new(ripe))
     }
 
     pub fn generate() -> Self {

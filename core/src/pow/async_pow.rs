@@ -26,7 +26,7 @@ impl AsyncPoW {
 
                 let mut nonce: BigUint = BigUint::from(i);
                 let mut trial_value = BigUint::parse_bytes(b"99999999999999999999", 10).unwrap();
-                while trial_value > t && !term_rx.try_recv().is_err() {
+                while trial_value > t && term_rx.try_recv().is_err() {
                     nonce += num_of_cores;
                     let result_hash = Sha512::digest(Sha512::digest(
                         [nonce.to_bytes_be().as_slice(), ih.as_slice()].concat(),
@@ -34,9 +34,7 @@ impl AsyncPoW {
                     trial_value = BigUint::from_bytes_be(&result_hash[0..8]);
                 }
 
-                if !term_rx.try_recv().is_err() {
-                    result_sender.blocking_send((trial_value, nonce)).unwrap();
-                }
+                let _ = result_sender.blocking_send((trial_value, nonce));
 
                 info!("PoW has ended");
             });
@@ -60,7 +58,6 @@ impl AsyncPoW {
                             _ = w.send(());
                         }
                         sender.send(res).expect("receiver not to be dropped");
-                        result_receiver.close();
                     }
                 }
             }

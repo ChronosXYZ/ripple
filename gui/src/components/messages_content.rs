@@ -10,8 +10,9 @@ use relm4::{
     loading_widgets::LoadingWidgets,
     view, AsyncComponentSender, RelmWidgetExt,
 };
+use ripple_core::network::node::client::NodeClient;
 
-use crate::{network::node::worker::Folder, state};
+use crate::network::node::worker::Folder;
 
 use super::{
     messages_sidebar::SelectedFolder,
@@ -70,6 +71,7 @@ pub struct MessagesContent {
     current_msg_buffer: gtk::TextBuffer,
 
     list_stack: gtk::Stack,
+    node_client: NodeClient,
 }
 
 #[derive(Debug)]
@@ -80,7 +82,7 @@ pub enum MessagesContentInput {
 
 #[relm4::component(pub async)]
 impl AsyncComponent for MessagesContent {
-    type Init = ();
+    type Init = NodeClient;
     type Input = MessagesContentInput;
     type Output = ();
     type CommandOutput = ();
@@ -166,7 +168,7 @@ impl AsyncComponent for MessagesContent {
     }
 
     async fn init(
-        _init: Self::Init,
+        node_client: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
@@ -201,6 +203,7 @@ impl AsyncComponent for MessagesContent {
             current_msg: None,
             current_msg_buffer: gtk::TextBuffer::new(None),
             list_stack: gtk::Stack::default(),
+            node_client,
         };
 
         let messages_list = &model.messages_list_view.view;
@@ -225,11 +228,8 @@ impl AsyncComponent for MessagesContent {
                     _ => Folder::Inbox,
                 };
                 // load messages from db
-                let msgs = state::STATE
-                    .write_inner()
-                    .client
-                    .as_mut()
-                    .unwrap()
+                let msgs = self
+                    .node_client
                     .get_messages(selected_folder.identity_address.clone(), folder)
                     .await;
                 if !msgs.is_empty() {

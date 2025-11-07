@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use anyhow::anyhow;
 use chrono::Utc;
 use futures::{future, StreamExt};
 use libp2p::{
@@ -72,17 +73,15 @@ pub enum Folder {
     Sent,
 }
 
-type DynError = Box<dyn Error + Send + Sync>;
-
 #[derive(Debug)]
 pub enum WorkerCommand {
     StartListening {
         multiaddr: Multiaddr,
-        sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
+        sender: oneshot::Sender<anyhow::Result<()>>,
     },
     Dial {
         peer: Multiaddr,
-        sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
+        sender: oneshot::Sender<anyhow::Result<()>>,
     },
     GetListenerAddress {
         sender: oneshot::Sender<Multiaddr>,
@@ -91,37 +90,37 @@ pub enum WorkerCommand {
         sender: oneshot::Sender<PeerId>,
     },
     BroadcastMsgByPubSub {
-        sender: oneshot::Sender<Result<(), Box<dyn Error + Send>>>,
+        sender: oneshot::Sender<anyhow::Result<()>>,
         msg: NetworkMessage,
     },
     NonceCalculated {
         obj: Object,
     },
     GetOwnIdentities {
-        sender: oneshot::Sender<Result<Vec<Address>, DynError>>,
+        sender: oneshot::Sender<anyhow::Result<Vec<Address>>>,
     },
     GenerateIdentity {
         label: String,
-        sender: oneshot::Sender<Result<String, DynError>>,
+        sender: oneshot::Sender<anyhow::Result<String>>,
     },
     RenameIdentity {
         new_label: String,
         address: String,
-        sender: oneshot::Sender<Result<(), DynError>>,
+        sender: oneshot::Sender<anyhow::Result<()>>,
     },
     DeleteIdentity {
         address: String,
-        sender: oneshot::Sender<Result<(), DynError>>,
+        sender: oneshot::Sender<anyhow::Result<()>>,
     },
     GetMessages {
         address: String,
         folder: Folder,
-        sender: oneshot::Sender<Result<Vec<models::Message>, DynError>>,
+        sender: oneshot::Sender<anyhow::Result<Vec<models::Message>>>,
     },
     SendMessage {
         msg: models::Message,
         from: String,
-        sender: oneshot::Sender<Result<(), DynError>>,
+        sender: oneshot::Sender<anyhow::Result<()>>,
     },
     Shutdown,
 }
@@ -406,7 +405,7 @@ impl NodeWorker {
                 match self.swarm.listen_on(multiaddr.clone()) {
                     Ok(_) => sender.send(Ok(())).expect("Receiver not to be dropped"),
                     Err(e) => sender
-                        .send(Err(Box::new(e)))
+                        .send(Err(anyhow!(e.to_string())))
                         .expect("Receiver not to be dropped"),
                 };
             }
@@ -429,7 +428,7 @@ impl NodeWorker {
             WorkerCommand::BroadcastMsgByPubSub { sender, msg } => match self.publish_pubsub(msg) {
                 Ok(_) => sender.send(Ok(())).expect("receiver not to be dropped"),
                 Err(e) => sender
-                    .send(Err(Box::new(e)))
+                    .send(Err(anyhow!(e.to_string())))
                     .expect("receiver not to be dropped"),
             },
             WorkerCommand::NonceCalculated { obj } => {
@@ -462,11 +461,19 @@ impl NodeWorker {
                 let result = self.address_repo.get_identities().await;
                 match result {
                     Ok(a) => {
-                        sender.send(Ok(a)).expect("receiver not to be dropped");
+                        log::debug!(
+                            "GetOwnIdentities: fetched {} identities, sending reply",
+                            a.len()
+                        );
+                        if let Err(_err) = sender.send(Ok(a)) {
+                            log::error!("GetOwnIdentities: oneshot receiver dropped before reply could be sent");
+                        } else {
+                            log::debug!("GetOwnIdentities: reply sent");
+                        }
                     }
                     Err(e) => {
                         sender
-                            .send(Err(Box::from(e.to_string())))
+                            .send(Err(anyhow!(e.to_string())))
                             .expect("receiver not to be dropped");
                         return;
                     }
@@ -483,7 +490,7 @@ impl NodeWorker {
                             .expect("receiver not to be dropped");
                     }
                     Err(e) => sender
-                        .send(Err(Box::from(e.to_string())))
+                        .send(Err(anyhow!(e.to_string())))
                         .expect("receiver not to be dropped"),
                 }
             }
@@ -496,7 +503,7 @@ impl NodeWorker {
                     sender.send(Ok(())).expect("receiver not to be dropped");
                 }
                 Err(e) => sender
-                    .send(Err(Box::from(e.to_string())))
+                    .send(Err(anyhow!(e.to_string())))
                     .expect("receiver not to be dropped"),
             },
             WorkerCommand::DeleteIdentity { address, sender } => {
@@ -505,7 +512,7 @@ impl NodeWorker {
                         sender.send(Ok(())).expect("receiver not to be dropped");
                     }
                     Err(e) => sender
-                        .send(Err(Box::from(e.to_string())))
+                        .send(Err(anyhow!(e.to_string())))
                         .expect("receiver not to be dropped"),
                 }
             }
@@ -518,14 +525,14 @@ impl NodeWorker {
                     match self.messages_repo.get_messages_by_recipient(address).await {
                         Ok(v) => sender.send(Ok(v)).expect("receiver not to be dropped"),
                         Err(e) => sender
-                            .send(Err(Box::from(e.to_string())))
+                            .send(Err(anyhow!(e.to_string())))
                             .expect("receiver not to be dropped"),
                     }
                 }
                 Folder::Sent => match self.messages_repo.get_messages_by_sender(address).await {
                     Ok(v) => sender.send(Ok(v)).expect("receiver not to be dropped"),
                     Err(e) => sender
-                        .send(Err(Box::from(e.to_string())))
+                        .send(Err(anyhow!(e.to_string())))
                         .expect("receiver not to be dropped"),
                 },
             },
@@ -555,26 +562,38 @@ impl NodeWorker {
                     }
                     None => {
                         let recipient_address = Address::with_string_repr(msg.recipient.clone());
-                        self.address_repo
-                            .store(recipient_address.clone())
-                            .await
-                            .unwrap();
-                        msg.status = MessageStatus::WaitingForPubkey.to_string();
-                        // we generate random hash value, cuz we don't really know real hash value of the message at the moment, and it's not that important
-                        msg.hash = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
-                        self.messages_repo.save_model(msg.clone()).await.unwrap();
-                        self.tracked_pubkeys
-                            .insert(bs58::encode(recipient_address.tag).into_string(), true);
-                        // send getpubkey request
-                        let obj = Object::with_signing(
-                            &identity,
-                            ObjectKind::Getpubkey {
-                                tag: Address::new(bs58::decode(msg.recipient).into_vec().unwrap())
-                                    .tag,
-                            },
-                            Utc::now() + chrono::Duration::days(7),
-                        );
-                        enqueue_pow(self.pow_worker_command_sink.clone(), obj).await;
+                        match recipient_address {
+                            Ok(addr) => {
+                                self.address_repo.store(addr.clone()).await.unwrap();
+                                msg.status = MessageStatus::WaitingForPubkey.to_string();
+                                // we generate random hash value, cuz we don't really know real hash value of the message at the moment, and it's not that important
+                                msg.hash = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+                                self.messages_repo.save_model(msg.clone()).await.unwrap();
+                                self.tracked_pubkeys
+                                    .insert(bs58::encode(addr.tag).into_string(), true);
+                                // send getpubkey request
+                                let obj = Object::with_signing(
+                                    &identity,
+                                    ObjectKind::Getpubkey {
+                                        tag: Address::new(
+                                            bs58::decode(msg.recipient).into_vec().unwrap(),
+                                        )
+                                        .tag,
+                                    },
+                                    Utc::now() + chrono::Duration::days(7),
+                                );
+                                enqueue_pow(self.pow_worker_command_sink.clone(), obj).await;
+                            }
+                            Err(e) => {
+                                sender
+                                    .send(Err(anyhow!(
+                                        "Recipient address is invalid: {}",
+                                        e.to_string()
+                                    )))
+                                    .expect("receiver not to be dropped");
+                                return;
+                            }
+                        };
                     }
                 }
                 sender.send(Ok(())).unwrap();
@@ -652,6 +671,10 @@ impl NodeWorker {
                     },
                 },
                 pubkey_notification = self.pubkey_notifier.recv() => self.handle_pubkey_notification(pubkey_notification.unwrap()).await,
+                else => {
+                    log::debug!("Shutting down network event loop...");
+                    return;
+                }
             }
         }
     }

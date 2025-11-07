@@ -13,8 +13,9 @@ use relm4::{
     component::{AsyncComponent, AsyncComponentParts},
     view, AsyncComponentSender, RelmWidgetExt,
 };
+use ripple_core::network::node::client::NodeClient;
 
-use crate::{components::utils::typed_list_view, state};
+use crate::components::utils::typed_list_view;
 
 use super::utils::typed_list_view::RelmListItem;
 
@@ -65,6 +66,7 @@ pub struct MessageComposer {
     to_buffer: gtk::EntryBuffer,
     subject_buffer: gtk::EntryBuffer,
     body_buffer: gtk::TextBuffer,
+    node_client: NodeClient,
 }
 
 #[derive(Debug)]
@@ -74,11 +76,16 @@ pub enum MessageComposerInput {
     IdentityItemSelected(IdentityDropdownItem),
 }
 
+#[derive(Debug)]
+pub enum MessageComposerOutput {
+    FailedToSendMessage(String),
+}
+
 #[relm4::component(pub async)]
 impl AsyncComponent for MessageComposer {
     type Input = MessageComposerInput;
-    type Output = ();
-    type Init = ();
+    type Output = MessageComposerOutput;
+    type Init = NodeClient;
     type CommandOutput = ();
 
     view! {
@@ -155,7 +162,7 @@ impl AsyncComponent for MessageComposer {
     }
 
     async fn init(
-        _init: Self::Init,
+        node_client: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
@@ -164,14 +171,9 @@ impl AsyncComponent for MessageComposer {
             to_buffer: gtk::EntryBuffer::new(Some("")),
             subject_buffer: gtk::EntryBuffer::new(Some("")),
             body_buffer: gtk::TextBuffer::new(None),
+            node_client: node_client,
         };
-        let identities = state::STATE
-            .write_inner()
-            .client
-            .as_mut()
-            .unwrap()
-            .get_own_identities()
-            .await;
+        let identities = model.node_client.get_own_identities().await;
 
         let factory = gtk::SignalListItemFactory::new();
         factory.connect_setup(move |_, list_item| {
@@ -241,7 +243,7 @@ impl AsyncComponent for MessageComposer {
     async fn update(
         &mut self,
         message: Self::Input,
-        _sender: AsyncComponentSender<Self>,
+        sender: AsyncComponentSender<Self>,
         root: &Self::Root,
     ) {
         match message {
@@ -259,11 +261,8 @@ impl AsyncComponent for MessageComposer {
                     )
                 );
                 root.close();
-                state::STATE
-                    .write_inner()
-                    .client
-                    .as_mut()
-                    .unwrap()
+                let result = self
+                    .node_client
                     .send_message(
                         self.current_identity.as_ref().unwrap().address.clone(),
                         self.to_buffer.text().to_string(),
@@ -277,6 +276,11 @@ impl AsyncComponent for MessageComposer {
                             .to_string(),
                     )
                     .await;
+                if let Err(e) = result {
+                    sender
+                        .output(MessageComposerOutput::FailedToSendMessage(e.to_string()))
+                        .unwrap();
+                }
             }
             MessageComposerInput::IdentityItemSelected(v) => self.current_identity = Some(v),
         }
